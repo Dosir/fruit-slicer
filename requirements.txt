@@ -1,0 +1,7 @@
+# 版本已针对 Python 3.8 + Intel macOS 验证（均有官方预编译轮子，无需源码编译）。
+# 注意：mediapipe 0.10.9+ 依赖 jaxlib（无 Intel Mac 轮子），故固定 0.10.8。
+# 若使用 Python 3.9–3.12 / Apple Silicon，可放宽为 pygame>=2.1 / opencv-contrib-python>=4.8 / mediapipe>=0.10
+pygame==2.5.2
+opencv-contrib-python==4.10.0.84
+mediapipe==0.10.8
+numpy==1.24.4
