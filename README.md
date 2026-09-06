@@ -49,6 +49,8 @@ python main.py
 所有手感参数集中在 `config.py`：
 
 - `SLICE_MIN_SPEED`：触发切割的最低挥动速度，切不动就调低（如 600），误切就调高
+- `TIP_SMOOTHING`：指尖平滑系数，光标抖就调小（更稳但更滞后）
+- `TRACK_LOST_GRACE`：指尖短暂丢失的宽限时间，刀光闪断就调大
 - `GRAVITY` / `LAUNCH_VY`：水果抛物线手感
 - `SPAWN_INTERVAL_START`：开局出水果的频率
 - `BOMB_*`：炸弹出现概率
@@ -69,3 +71,4 @@ main.py          游戏主循环（菜单、计分、生成、连击）
 - **画面卡顿**：关闭其他占用摄像头的 App；把 `config.py` 里的 `WINDOW_W/H` 调小
 - **切不到水果**：调低 `SLICE_MIN_SPEED`
 - **误切**：调高 `SLICE_MIN_SPEED`
+- **指尖追踪不灵敏/光标消失**：加强正面光照（减少运动模糊）；调大 `TRACK_LOST_GRACE`、调小 `TIP_SMOOTHING`

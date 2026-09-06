@@ -6,12 +6,15 @@ FPS = 60
 
 # 摄像头
 CAMERA_INDEX = 0
+CAMERA_SIZE = (640, 480)     # 采集分辨率；越低推理越快，指尖坐标按比例映射不受影响
 
 # 刀光
 MAX_TRAIL_POINTS = 24        # 轨迹最多保留的点数
 TRAIL_MAX_AGE = 0.20         # 轨迹点存活时间（秒）
-SLICE_MIN_SPEED = 850        # 触发切割的指尖最低速度（像素/秒）
+SLICE_MIN_SPEED = 1000       # 触发切割的指尖最低速度（像素/秒）
 BLADE_TIP_RADIUS = 10        # 判定时给指尖加的缓冲半径
+TRACK_LOST_GRACE = 0.2      # 指尖短暂丢失的宽限时间（秒），期内恢复则桥接切割
+TIP_SMOOTHING = 0.5          # 指尖 EMA 平滑系数：1=不平滑，越小越稳但越滞后
 
 # 物理
 GRAVITY = 1500.0             # 重力加速度（像素/秒^2）

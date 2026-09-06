@@ -16,8 +16,8 @@ import pygame
 from blade import Blade, seg_point_dist
 from config import (
     BOMB_BASE_P, BOMB_MAX_P, BOMB_P_PER_SCORE, BLADE_TIP_RADIUS, CAMERA_INDEX,
-    COMBO_BONUS_MIN, FPS, LIVES, SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_START,
-    WAVE_SIZE, WINDOW_H, WINDOW_W,
+    CAMERA_SIZE, COMBO_BONUS_MIN, FPS, LIVES, SPAWN_INTERVAL_MIN,
+    SPAWN_INTERVAL_START, WAVE_SIZE, WINDOW_H, WINDOW_W,
 )
 from entities import Bomb, Fruit, HalfFruit, Particle, Popup
 from hand_tracker import HandTracker
@@ -57,7 +57,7 @@ class Game:
         self.font_big = load_font(60)
         self.font_mid = load_font(34)
         self.font_small = load_font(22)
-        self.tracker = HandTracker(CAMERA_INDEX, (WINDOW_W, WINDOW_H))
+        self.tracker = HandTracker(CAMERA_INDEX, (WINDOW_W, WINDOW_H), CAMERA_SIZE)
         self.blade = Blade()
         self.best = 0
         self.bg = None

@@ -5,7 +5,10 @@ from collections import deque
 
 import pygame
 
-from config import BLADE_TIP_RADIUS, MAX_TRAIL_POINTS, SLICE_MIN_SPEED, TRAIL_MAX_AGE
+from config import (
+    BLADE_TIP_RADIUS, MAX_TRAIL_POINTS, SLICE_MIN_SPEED, TRACK_LOST_GRACE,
+    TRAIL_MAX_AGE,
+)
 
 
 def seg_point_dist(seg, px, py):
@@ -25,19 +28,30 @@ class Blade:
     def __init__(self):
         self.points = deque()      # (x, y, 时间戳)
         self.slice_segments = []   # 本帧产生的切割线段 [(x1, y1, x2, y2)]
+        self.lost_at = None        # 指尖开始丢失的时间，用于短时宽限
 
     def update(self, tip, now):
         """tip: 当前指尖 (x, y) 或 None；now: time.perf_counter() 秒。"""
         self.slice_segments = []
+        self._prune(now)
         if tip is None:
-            self.points.clear()
+            # 偶发丢检不清空轨迹：宽限期内恢复时从上一点桥接，刀光不闪断
+            if self.lost_at is None:
+                self.lost_at = now
+            if now - self.lost_at > TRACK_LOST_GRACE:
+                self.points.clear()
             return
+        self.lost_at = None
         if self.points:
             px, py, pt = self.points[-1]
+            # 跨过丢失间隙的两点也照常算速度，快速挥动不会因丢帧而断刀
             speed = math.hypot(tip[0] - px, tip[1] - py) / max(now - pt, 1e-4)
             if speed >= SLICE_MIN_SPEED:
                 self.slice_segments.append((px, py, tip[0], tip[1]))
         self.points.append((tip[0], tip[1], now))
+        self._prune(now)
+
+    def _prune(self, now):
         while self.points and now - self.points[0][2] > TRAIL_MAX_AGE:
             self.points.popleft()
         while len(self.points) > MAX_TRAIL_POINTS:
