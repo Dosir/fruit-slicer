@@ -61,6 +61,7 @@ class Game:
         self.blade = Blade()
         self.best = 0
         self.bg = None
+        self.cam_frame = None  # 上次用于生成背景的摄像头帧，避免同一帧重复转色建面
         # 每帧复用的覆盖层
         self.tint = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
         self.tint.fill((0, 0, 0, 55))
@@ -262,7 +263,10 @@ class Game:
                         self.state = self.PLAYING
 
             frame, tip = self.tracker.read()
-            if frame is not None:
+            # 追踪在后台线程进行，read() 在两次追踪结果之间返回同一帧对象，
+            # 只在真正拿到新帧时才重建背景表面。
+            if frame is not None and frame is not self.cam_frame:
+                self.cam_frame = frame
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 self.bg = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
             self.blade.update(tip, now)

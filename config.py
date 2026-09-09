@@ -14,7 +14,9 @@ TRAIL_MAX_AGE = 0.20         # 轨迹点存活时间（秒）
 SLICE_MIN_SPEED = 1000       # 触发切割的指尖最低速度（像素/秒）
 BLADE_TIP_RADIUS = 10        # 判定时给指尖加的缓冲半径
 TRACK_LOST_GRACE = 0.2      # 指尖短暂丢失的宽限时间（秒），期内恢复则桥接切割
-TIP_SMOOTHING = 0.5          # 指尖 EMA 平滑系数：1=不平滑，越小越稳但越滞后
+TIP_SMOOTH_MIN = 0.3         # 慢速（瞄准）时的 EMA 系数下限：越小越稳但越滞后
+TIP_SMOOTH_SPEED = 900       # 平滑释放速度（像素/秒）：挥动达到该速度后不再平滑（跟手）
+TIP_PREDICT_MAX = 0.05       # 指尖外推时长上限（秒）：追踪线程暂时卡住时光标冻结而不是滑飞
 
 # 物理
 GRAVITY = 1500.0             # 重力加速度（像素/秒^2）

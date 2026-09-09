@@ -49,7 +49,9 @@ python main.py
 所有手感参数集中在 `config.py`：
 
 - `SLICE_MIN_SPEED`：触发切割的最低挥动速度，切不动就调低（如 600），误切就调高
-- `TIP_SMOOTHING`：指尖平滑系数，光标抖就调小（更稳但更滞后）
+- `TIP_SMOOTH_MIN`：慢速瞄准时的平滑系数，光标抖就调小（更稳但更滞后）
+- `TIP_SMOOTH_SPEED`：平滑释放速度（像素/秒），快速挥动超过该速度后不再平滑；快速挥刀仍发滞就调小
+- `TIP_PREDICT_MAX`：指尖外推时长上限，刀光跟不上手就调大，光标"滑飞"就调小
 - `TRACK_LOST_GRACE`：指尖短暂丢失的宽限时间，刀光闪断就调大
 - `GRAVITY` / `LAUNCH_VY`：水果抛物线手感
 - `SPAWN_INTERVAL_START`：开局出水果的频率
@@ -59,7 +61,7 @@ python main.py
 
 ```
 config.py        全局参数（窗口、物理、玩法手感）
-hand_tracker.py  摄像头 + MediaPipe 手部追踪，输出食指指尖坐标
+hand_tracker.py  摄像头 + MediaPipe 手部追踪（后台线程推理），输出食指指尖坐标
 blade.py         刀光轨迹 + 速度阈值切割判定（点到线段碰撞）
 entities.py      水果 / 炸弹 / 两半果体 / 果汁粒子 / 飘字
 main.py          游戏主循环（菜单、计分、生成、连击）
@@ -71,4 +73,4 @@ main.py          游戏主循环（菜单、计分、生成、连击）
 - **画面卡顿**：关闭其他占用摄像头的 App；把 `config.py` 里的 `WINDOW_W/H` 调小
 - **切不到水果**：调低 `SLICE_MIN_SPEED`
 - **误切**：调高 `SLICE_MIN_SPEED`
-- **指尖追踪不灵敏/光标消失**：加强正面光照（减少运动模糊）；调大 `TRACK_LOST_GRACE`、调小 `TIP_SMOOTHING`
+- **指尖追踪不灵敏/光标消失**：加强正面光照（减少运动模糊）；调大 `TRACK_LOST_GRACE`、调小 `TIP_SMOOTH_MIN`
