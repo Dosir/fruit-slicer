@@ -16,11 +16,12 @@ import pygame
 from blade import Blade, seg_point_dist
 from config import (
     BOMB_BASE_P, BOMB_MAX_P, BOMB_P_PER_SCORE, BLADE_TIP_RADIUS, CAMERA_INDEX,
-    CAMERA_SIZE, COMBO_BONUS_MIN, FPS, LIVES, SPAWN_INTERVAL_MIN,
-    SPAWN_INTERVAL_START, WAVE_SIZE, WINDOW_H, WINDOW_W,
+    CAMERA_SIZE, COMBO_BONUS_MIN, FPS, GAME_DURATION, MUSIC_ENABLED, MUSIC_VOLUME,
+    SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_START, WAVE_SIZE, WINDOW_H, WINDOW_W,
 )
-from entities import Bomb, Fruit, HalfFruit, Particle, Popup
+from entities import Bomb, Fruit, HalfFruit, Particle, Popup, load_fruit_sprites
 from hand_tracker import HandTracker
+from music import build_music
 
 os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 
@@ -35,23 +36,14 @@ def load_font(size):
     return pygame.font.Font(None, size)
 
 
-def draw_heart(surf, cx, cy, size, color):
-    """参数方程画一颗心。"""
-    pts = []
-    for i in range(0, 630, 15):
-        t = math.radians(i / 10)
-        x = 16 * math.sin(t) ** 3
-        y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
-        pts.append((cx + x * size / 16, cy - y * size / 16))
-    pygame.draw.polygon(surf, color, pts)
-
-
 class Game:
     MENU, PLAYING, OVER = range(3)
 
     def __init__(self):
+        pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
         self.screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
+        load_fruit_sprites()             # 必须在 set_mode 之后：convert_alpha 需要显示格式
         pygame.display.set_caption("手势切水果")
         self.clock = pygame.time.Clock()
         self.font_big = load_font(60)
@@ -69,12 +61,25 @@ class Game:
         self.flash_surf = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
         self.state = self.MENU
         self.reset()
+        self._start_music()
+
+    def _start_music(self):
+        """启动背景音乐；音频设备不可用或合成失败时静默跳过。"""
+        self.music = None
+        if not MUSIC_ENABLED or pygame.mixer.get_init() is None:
+            return
+        try:
+            self.music = build_music()
+            self.music.set_volume(MUSIC_VOLUME)
+            self.music.play(loops=-1)
+        except Exception as err:
+            print(f"背景音乐加载失败: {err}")
 
     def reset(self):
         self.fruits, self.bombs, self.halves = [], [], []
         self.particles, self.popups = [], []
         self.score = 0
-        self.lives = LIVES
+        self.time_left = GAME_DURATION
         self.spawn_timer = 0.9
         self.flash = 0.0
         self.over_since = 0.0
@@ -102,7 +107,8 @@ class Game:
                 fruit.x, fruit.y,
                 fruit.vx * 0.4 + nx * sign * random.uniform(120, 280),
                 fruit.vy * 0.4 + ny * sign * random.uniform(120, 280) - 80,
-                fruit.r, fruit.color, fruit.dark, flat,
+                fruit.r, fruit.color, fruit.dark, fruit.inner, fruit.pith,
+                fruit.name, flat,
             ))
         for _ in range(12):
             self.particles.append(Particle(fruit.x, fruit.y, fruit.color))
@@ -142,14 +148,6 @@ class Game:
             else:
                 self.score += total_cut
 
-    def lose_life(self):
-        self.lives -= 1
-        self.flash = max(self.flash, 0.5)
-        if self.lives <= 0:
-            self.best = max(self.best, self.score)
-            self.state = self.OVER
-            self.over_since = time.perf_counter()
-
     # ---------- 更新 ----------
 
     def update_fx(self, dt):
@@ -171,6 +169,14 @@ class Game:
             interval = max(SPAWN_INTERVAL_MIN, SPAWN_INTERVAL_START - self.score * 0.015)
             self.spawn_timer = interval * random.uniform(0.85, 1.25)
 
+        self.time_left -= dt
+        if self.time_left <= 0:
+            self.time_left = 0
+            self.best = max(self.best, self.score)
+            self.state = self.OVER
+            self.over_since = time.perf_counter()
+            return
+
         for f in self.fruits:
             f.update(dt)
         for b in self.bombs:
@@ -179,7 +185,6 @@ class Game:
 
         for f in [f for f in self.fruits if f.fell_off(WINDOW_H)]:
             self.fruits.remove(f)
-            self.lose_life()
         for b in [b for b in self.bombs if b.fell_off(WINDOW_H)]:
             self.bombs.remove(b)
 
@@ -222,14 +227,15 @@ class Game:
             shadow = self.font_mid.render(f"得分 {self.score}", True, (0, 0, 0))
             surf.blit(shadow, (22, 18))
             surf.blit(img, (20, 16))
-            for i in range(LIVES):
-                color = (255, 70, 90) if i < self.lives else (60, 60, 60)
-                draw_heart(surf, WINDOW_W - 34 - i * 42, 36, 15, color)
+            remain = int(self.time_left)
+            tcolor = (255, 200, 80) if remain <= 10 else (255, 255, 255)
+            timg = self.font_mid.render(f"剩余 {remain} 秒", True, tcolor)
+            surf.blit(timg, (WINDOW_W - timg.get_width() - 20, 16))
         elif self.state == self.MENU:
             self.draw_text_center(self.font_big, "手势切水果", WINDOW_H * 0.18)
-            self.draw_text_center(self.font_mid, "举起食指，快速挥动即可切开水果",
+            self.draw_text_center(self.font_mid, f"在 {GAME_DURATION} 秒内尽可能多得分",
                                   WINDOW_H * 0.42)
-            self.draw_text_center(self.font_mid, "切到炸弹立即结束，漏掉水果扣一颗心",
+            self.draw_text_center(self.font_mid, "切到炸弹立即结束，漏掉水果不扣命",
                                   WINDOW_H * 0.42 + 52, (255, 170, 120))
             self.draw_text_center(self.font_small, "挥动手指 或 按 空格键 开始（ESC 退出）",
                                   WINDOW_H * 0.42 + 120, (180, 220, 255))

@@ -1,6 +1,7 @@
 """游戏实体：水果、炸弹、切开的两半、果汁粒子、得分飘字。"""
 
 import math
+import os
 import random
 
 import pygame
@@ -11,10 +12,61 @@ from config import GRAVITY, LAUNCH_VX_MAX, LAUNCH_VY, WINDOW_W
 FRUIT_TYPES = (
     ("西瓜", (102, 187, 106), (46, 125, 50), 46),
     ("橙子", (255, 167, 38), (225, 120, 0), 34),
-    ("苹果", (239, 83, 80), (183, 28, 28), 32),
-    ("猕猴桃", (156, 204, 101), (85, 139, 47), 30),
-    ("柠檬", (230, 220, 90), (175, 164, 30), 28),
 )
+
+# 切开后露出的果肉 / 白瓤颜色（贴近真实果肉）
+FRUIT_FLESH = {
+    "西瓜": ((244, 104, 98), (214, 232, 176)),
+    "橙子": ((255, 200, 120), (255, 244, 224)),
+}
+
+# 真实果体贴图：由 tools/render_emoji.swift 生成，等比缩放到碰撞直径
+_ASSET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+_FRUIT_SPRITE_FILES = {"西瓜": "watermelon.png", "橙子": "orange.png"}
+
+
+def _scale_sprite(img, r):
+    w, h = img.get_size()
+    scale = (2 * r) / max(w, h)
+    return pygame.transform.smoothscale(
+        img, (max(1, int(w * scale)), max(1, int(h * scale))))
+
+
+FRUIT_SPRITES = {}  # 由 main 在 set_mode 之后调用 load_fruit_sprites() 填充
+
+
+def load_fruit_sprites():
+    """建窗后调用：加载并 convert_alpha，把贴图转成显示格式（blit 快 ~26 倍）。"""
+    for _name, _color, _dark, _r in FRUIT_TYPES:
+        _path = os.path.join(_ASSET_DIR, _FRUIT_SPRITE_FILES.get(_name, ""))
+        _img = None
+        if os.path.exists(_path):
+            try:
+                _img = pygame.image.load(_path)
+                _img = _scale_sprite(_img, _r)
+                _img = _img.convert_alpha()   # 转成显示表面格式，避免每帧逐像素转换
+            except pygame.error:
+                _img = None
+        FRUIT_SPRITES[_name] = _img
+
+
+_SHADOW_CACHE = {}
+
+
+def _soft_shadow(r):
+    """按半径缓存的圆形软阴影（alpha 渐变）。"""
+    surf = _SHADOW_CACHE.get(r)
+    if surf is not None:
+        return surf
+    side = 2 * r + 10
+    surf = pygame.Surface((side, side), pygame.SRCALPHA)
+    c = r + 5
+    steps = max(3, r // 3)
+    for i in range(steps, 0, -1):
+        rr = int(r * i / steps)
+        pygame.draw.circle(surf, (0, 0, 0, int(70 * i / steps)), (c, c), rr)
+    _SHADOW_CACHE[r] = surf
+    return surf
 
 
 def launch_velocity(x):
@@ -39,12 +91,22 @@ class _Airborne:
 class Fruit(_Airborne):
     def __init__(self, x, y):
         self.name, self.color, self.dark, self.r = random.choice(FRUIT_TYPES)
+        self.inner, self.pith = FRUIT_FLESH.get(self.name, (self.color, (255, 255, 255)))
         self.x, self.y = float(x), float(y)
         self.vx, self.vy = launch_velocity(x)
         self.sliced = False
 
     def draw(self, surf):
         cx, cy, r = int(self.x), int(self.y), self.r
+        sprite = FRUIT_SPRITES.get(self.name)
+        if sprite is not None:
+            shadow = _soft_shadow(r)
+            surf.blit(shadow, (cx - shadow.get_width() // 2 + 3,
+                               cy - shadow.get_height() // 2 + 6))
+            surf.blit(sprite, (cx - sprite.get_width() // 2,
+                               cy - sprite.get_height() // 2))
+            return
+        # 贴图缺失时的兜底：回退到圆形 + 纹路
         pygame.draw.circle(surf, self.dark, (cx + 3, cy + 4), r)    # 阴影
         pygame.draw.circle(surf, self.color, (cx, cy), r)
         pygame.draw.circle(surf, self.dark, (cx, cy), r, 3)         # 描边
@@ -87,11 +149,13 @@ class Bomb(_Airborne):
 class HalfFruit(_Airborne):
     """半个果体：切口沿切割线，边旋转边飞出。"""
 
-    def __init__(self, x, y, vx, vy, r, color, dark, flat_angle):
+    def __init__(self, x, y, vx, vy, r, color, dark, inner, pith, name, flat_angle):
         self.r = r
         self.x, self.y = float(x), float(y)
         self.vx, self.vy = vx, vy
         self.color, self.dark = color, dark
+        self.inner, self.pith = inner, pith
+        self.name = name
         self.rot = flat_angle
         self.spin = random.uniform(-220, 220)
 
@@ -105,8 +169,26 @@ class HalfFruit(_Airborne):
             a = math.radians(self.rot + i)
             pts.append((int(self.x + self.r * math.cos(a)),
                         int(self.y + self.r * math.sin(a))))
-        pygame.draw.polygon(surf, self.color, pts)
-        pygame.draw.line(surf, self.dark, pts[0], pts[-1], 4)
+        pygame.draw.polygon(surf, self.inner, pts)                 # 果肉
+        rind = max(3, int(self.r * 0.20))
+        pygame.draw.lines(surf, self.color, False, pts, rind)      # 果皮
+        pygame.draw.lines(surf, self.pith, False, pts, rind // 2)  # 白瓤
+        pygame.draw.line(surf, self.dark, pts[0], pts[-1], 3)      # 切口
+        if self.name == "西瓜":                                     # 籽
+            for la in (40, 90, 140):
+                a = math.radians(self.rot + la)
+                sx = self.x + self.r * 0.55 * math.cos(a)
+                sy = self.y + self.r * 0.55 * math.sin(a)
+                pygame.draw.ellipse(surf, (40, 30, 26),
+                                    (int(sx - 3), int(sy - 4), 6, 8))
+        elif self.name == "橙子":                                   # 瓣纹
+            for la in (30, 60, 90, 120, 150):
+                a = math.radians(self.rot + la)
+                ex = self.x + self.r * 0.80 * math.cos(a)
+                ey = self.y + self.r * 0.80 * math.sin(a)
+                pygame.draw.line(surf, (240, 208, 150),
+                                 (int(self.x), int(self.y)),
+                                 (int(ex), int(ey)), 2)
 
 
 class Particle:

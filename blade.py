@@ -6,8 +6,8 @@ from collections import deque
 import pygame
 
 from config import (
-    BLADE_TIP_RADIUS, MAX_TRAIL_POINTS, SLICE_MIN_SPEED, TRACK_LOST_GRACE,
-    TRAIL_MAX_AGE,
+    BLADE_TIP_RADIUS, MAX_TRAIL_POINTS, SLICE_MAX_LEN, SLICE_MIN_SPEED,
+    TRACK_LOST_GRACE, TRAIL_MAX_AGE,
 )
 
 
@@ -45,8 +45,10 @@ class Blade:
         if self.points:
             px, py, pt = self.points[-1]
             # 跨过丢失间隙的两点也照常算速度，快速挥动不会因丢帧而断刀
-            speed = math.hypot(tip[0] - px, tip[1] - py) / max(now - pt, 1e-4)
-            if speed >= SLICE_MIN_SPEED:
+            seg_len = math.hypot(tip[0] - px, tip[1] - py)
+            speed = seg_len / max(now - pt, 1e-4)
+            # 丢检跳变会产生横跨半屏的假切割线段，长度超限视为幽灵切割、不参与判定
+            if seg_len <= SLICE_MAX_LEN and speed >= SLICE_MIN_SPEED:
                 self.slice_segments.append((px, py, tip[0], tip[1]))
         self.points.append((tip[0], tip[1], now))
         self._prune(now)
